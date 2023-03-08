@@ -12,6 +12,9 @@ def sign_extend(value, bits):
     return res
 
 
+def complement_value(value):
+    return  (value & ((1 << 31) - 1)) - (value & (1 << 31))
+
 class InsMem(object):
     def __init__(self, name, ioDir):
         self.id = name
@@ -54,21 +57,19 @@ class RegisterFile(object):
     def __init__(self, ioDir):
         self.outputFile = ioDir + "RFResult.txt"
         self.Registers = [0x0 for i in range(32)]
-
     def readRF(self, Reg_addr):
         return self.Registers[Reg_addr]
 
     def writeRF(self, Reg_addr, Wrt_reg_data):
+        # Write Integer to registers (Signed ).
         self.Registers[Reg_addr] = Wrt_reg_data
 
     def outputRF(self, cycle):
-        op = ["-" * 70 + "\n", "State of RF after executing cycle:" + str(cycle) + "\n"]
-        # op.extend([str(val)+"\n" for val in self.Registers])
-        op.extend(["{:032b}".format(val) + "\n" for val in self.Registers])
-        if (cycle == 0):
-            perm = "w"
-        else:
-            perm = "a"
+        op = ["-"*70+"\n", "State of RF after executing cycle:" + str(cycle) + "\n"]
+        #op.extend([str(val)+"\n" for val in self.Registers])
+        op.extend(["{:032b}".format(val)+"\n"[-32:] for val in self.Registers]) # Can't support overflow
+        if(cycle == 0): perm = "w"
+        else: perm = "a"
         with open(self.outputFile, perm) as file:
             file.writelines(op)
 
@@ -108,14 +109,15 @@ class SingleStageCore(Core):
             instr = ""
         else:
             instr = self.ext_imem.readInstr(self.state.IF["PC"])
-            op = instr[-7:]
+            op = instr[25:32]
+            rd = instr[20:25]
 
-            rs2 = instr[-25:-20]
-            rs1 = instr[-20:-15]
-            rd = instr[-12:-7]
+            rs2 = instr[7:12]
+            rs1 = instr[12:17]
+
 
             funct7 = instr[0:7]
-            funct3 = instr[-15:-12]
+            funct3 = instr[17:20]
 
             imm = instr[0:12]
 
@@ -131,7 +133,7 @@ class SingleStageCore(Core):
             elif (rdVal != 0 and op == "0110011"):
                 # ADD
                 if (funct7 == "0000000" and funct3 == "000"):
-                    res = (rs1Val + rs2Val) & 0xffffffff
+                    res = (rs1Val + rs2Val) & 0xffffffff # Decimal， overflow?
                     self.myRF.writeRF(rdVal, res)
 
 
@@ -147,7 +149,8 @@ class SingleStageCore(Core):
 
                 # SLT
                 elif (funct7 == "0000000" and funct3 == "001"):
-                    res = (rs1Val < rs2Val)
+                    # 2's complement -> Decimal?
+                    res = (complement_value(rs1Val) < complement_value(rs2Val))
                     self.myRF.writeRF(rdVal, res)
 
                 # SLTU
@@ -162,13 +165,16 @@ class SingleStageCore(Core):
 
                 # SRL
                 elif (funct7 == "0000000" and funct3 == "101"):
-                    res = self.myRF.readRF(rs1) >> self.myRF.readRF(rs2)
+                    #res = self.myRF.readRF(rs1) >> self.myRF.readRF(rs2)
+                    res = rs1Val >> rs2Val
                     self.myRF.writeRF(rdVal, res)
 
                 # SRA
                 elif (funct7 == "0100000" and funct3 == "101"):
-                    res = self.myRF.readRF(rs1) >> self.myRF.readRF(rs2)
+                    # res = self.myRF.readRF(rs1) >> self.myRF.readRF(rs2)
+                    res = (complement_value(rs1Val) >> rs2Val) & 0xffffffff
                     self.myRF.writeRF(rdVal, res)
+
 
                 # OR
                 elif (funct7 == "0000000" and funct3 == "110"):
@@ -182,7 +188,8 @@ class SingleStageCore(Core):
 
                 # SRLI
                 elif (funct7 == "0000000" and funct3 == "111"):
-                    res = rs1Val >> immVal
+                    # res = rs1Val >> immVal
+                    res = rs1Val >> sign_extend(immVal, 12)
                     self.myRF.writeRF(rdVal, res)
 
 
