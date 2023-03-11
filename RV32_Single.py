@@ -102,10 +102,11 @@ class SingleStageCore(Core):
     def __init__(self, ioDir, imem, dmem):
         super(SingleStageCore, self).__init__(ioDir + "/SS_", imem, dmem)
         self.opFilePath = ioDir + "/StateResult_SS.txt"
-
+        self.cntInstr = 0
     def step(self):
         # Your implementation
         common_PC = True
+        self.cntInstr += 1
         if (self.state.IF["nop"] == True):
             instr = ""
         else:
@@ -137,67 +138,54 @@ class SingleStageCore(Core):
                 # ADD
                 if (funct7 == "0000000" and funct3 == "000"):
                     res = (rs1Val + rs2Val) & 0xffffffff # Ignore Overflow
-                    self.myRF.writeRF(rdVal, res)
 
 
                 # SUB
                 elif (funct7 == "0100000" and funct3 == "000"):
                     res = (rs1Val - rs2Val) & 0xffffffff # Ignore Overflow
-                    self.myRF.writeRF(rdVal, res)
 
                 # SLL
                 elif (funct7 == "0000000" and funct3 == "001"):
                     res = (rs1Val << rs2Val) & 0xffffffff
-                    self.myRF.writeRF(rdVal, res)
 
                 # SLT
                 elif (funct7 == "0000000" and funct3 == "001"):
                     # 2's complement -> Decimal?
                     res = (complementTovalue(rs1Val) < complementTovalue(rs2Val))
-                    self.myRF.writeRF(rdVal, res)
 
                 # SLTU
                 elif (funct7 == "0000000" and funct3 == "011"):
                     res = (rs1Val < rs2Val)
-                    self.myRF.writeRF(rdVal, res)
 
                 # XOR
                 elif (funct7 == "0000000" and funct3 == "100"):
                     res = (rs1Val ^ rs2Val) & 0xffffffff
-                    self.myRF.writeRF(rdVal, res)
 
                 # SRL
                 elif (funct7 == "0000000" and funct3 == "101"):
                     #res = self.myRF.readRF(rs1) >> self.myRF.readRF(rs2)
                     res = rs1Val >> rs2Val
-                    self.myRF.writeRF(rdVal, res)
 
                 # SRA
                 elif (funct7 == "0100000" and funct3 == "101"):
                     # res = self.myRF.readRF(rs1) >> self.myRF.readRF(rs2)
                     res = (complementTovalue(rs1Val) >> rs2Val) & 0xffffffff
-                    self.myRF.writeRF(rdVal, res)
-
 
                 # OR
                 elif (funct7 == "0000000" and funct3 == "110"):
                     res = (rs1Val | rs2Val) & 0xffffffff
-                    self.myRF.writeRF(rdVal, res)
 
                 # AND
                 elif (funct7 == "0000000" and funct3 == "111"):
                     res = (rs1Val & rs2Val) & 0xffffffff
-                    self.myRF.writeRF(rdVal, res)
 
                 # SRLI
                 elif (funct7 == "0000000" and funct3 == "111"):
                     # res = rs1Val >> immVal
                     res = rs1Val >> immVal
-                    self.myRF.writeRF(rdVal, res)
-
+                self.myRF.writeRF(rdVal, res)
 
             elif (rdVal != 0):
-
                 # LW
                 if (op == "0000011" and funct3 == "010"):
                     val = self.ext_dmem.readInstr(rs1Val + immVal)
@@ -396,6 +384,11 @@ if __name__ == "__main__":
 
         if ssCore.halted and fsCore.halted:
             break
+    print("Performance Metric:")
+    print("[Single Stage]")
+    print("CPI =", ssCore.cycle / ssCore.cntInstr)
+    print("Total execution cycles =", ssCore.cycle)
+    print("Instructions per cycle =", ssCore.cntInstr/ssCore.cycle)
 
     # dump SS and FS data mem.
     dmem_ss.outputDataMem()
