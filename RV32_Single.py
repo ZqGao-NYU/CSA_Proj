@@ -184,7 +184,23 @@ class SingleStageCore(Core):
                     # res = rs1Val >> immVal
                     res = rs1Val >> immVal
                 self.myRF.writeRF(rdVal, res)
-
+            # JAL
+            elif (op == "1101111"):
+                offset = instr[:-12]
+                offset = sign_extend(int(offset[0] + offset[-8:] + offset[-9] + offset[-19:-9] + "0", 2), 20)
+                self.myRF.writeRF(rdVal, (self.state.IF["PC"] + 4 & 0xffffffff))
+                self.state.IF["PC"] += offset  # Decimal?
+                common_PC = False
+                # if self.state.IF["nop"]:
+                #     self.halted = True
+                #
+                # self.myRF.outputRF(self.cycle)  # dump RF
+                # self.printState(self.nextState,
+                #                 self.cycle)  # print states after executing cycle 0, cycle 1, cycle 2 ...
+                #
+                # self.state = self.nextState  # The end of the cycle and updates the current state with the values calculated in this cycle
+                # self.cycle += 1
+                # return
             elif (rdVal != 0):
                 # LW
                 if (op == "0000011" and funct3 == "010"):
@@ -195,24 +211,6 @@ class SingleStageCore(Core):
                 elif (op == "0100011" and funct3 == "010"):
                     # x[rs1] + sign_exd(imm) = x[rs2]
                     self.ext_dmem.writeDataMem(rs1Val + concat_immVal, rs2Val)
-
-                # JAL
-                elif (op == "1101111"):
-                    offset = instr[:-12]
-                    offset = sign_extend(int(offset[0] + offset[-8:] + offset[-9] + offset[-19:-9] + "0", 2), 20)
-                    self.myRF.writeRF(rdVal, (self.state.IF["PC"] + 4 & 0xffffffff))
-                    self.state.IF["PC"] += offset # Decimal?
-                    common_PC = False
-                    # if self.state.IF["nop"]:
-                    #     self.halted = True
-                    #
-                    # self.myRF.outputRF(self.cycle)  # dump RF
-                    # self.printState(self.nextState,
-                    #                 self.cycle)  # print states after executing cycle 0, cycle 1, cycle 2 ...
-                    #
-                    # self.state = self.nextState  # The end of the cycle and updates the current state with the values calculated in this cycle
-                    # self.cycle += 1
-                    # return
 
                 # BEQ
                 elif (op == "1100011" and funct3 == "000"):
@@ -287,6 +285,8 @@ class SingleStageCore(Core):
                 elif (funct3 == "111"):
                     res = (rs1Val << immVal) & 0xffffffff
                     self.myRF.writeRF(rdVal, res)
+
+
         if common_PC:
             self.nextState.IF["PC"] += 4
         if self.state.IF["nop"]:
