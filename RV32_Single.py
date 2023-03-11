@@ -201,50 +201,49 @@ class SingleStageCore(Core):
                 # self.state = self.nextState  # The end of the cycle and updates the current state with the values calculated in this cycle
                 # self.cycle += 1
                 # return
+            # SW
+            elif (op == "0100011" and funct3 == "010"):
+                # x[rs1] + sign_exd(imm) = x[rs2]
+                self.ext_dmem.writeDataMem(rs1Val + concat_immVal, rs2Val)
+            # BEQ
+            elif (op == "1100011" and funct3 == "000"):
+                if (rs1Val == rs2Val):
+                    offset = sign_extend(int(instr[0] + instr[-8] + instr[1:7] + instr[-12:-8] + "0", 2), 12)
+                    self.state.IF["PC"] += offset
+                    common_PC = False
+                    # if self.state.IF["nop"]:
+                    #     self.halted = True
+                    #
+                    # self.myRF.outputRF(self.cycle)  # dump RF
+                    # self.printState(self.nextState,
+                    #                 self.cycle)  # print states after executing cycle 0, cycle 1, cycle 2 ...
+                    #
+                    # self.state = self.nextState  # The end of the cycle and updates the current state with the values calculated in this cycle
+                    # self.cycle += 1
+                    # return
+
+            # BNE
+            elif (op == "1100011" and funct3 == "001"):
+                if (rs1Val != rs2Val):
+                    offset = sign_extend(int(instr[0] + instr[-8] + instr[1:6] + instr[-12:-8] + "0", 2), 12)
+                    self.state.IF["PC"] += offset
+                    common_PC = False
+                    # if self.state.IF["nop"]:
+                    #     self.halted = True
+                    #
+                    # self.myRF.outputRF(self.cycle)  # dump RF
+                    # self.printState(self.nextState,
+                    #                 self.cycle)  # print states after executing cycle 0, cycle 1, cycle 2 ...
+                    #
+                    # self.state = self.nextState  # The end of the cycle and updates the current state with the values calculated in this cycle
+                    # self.cycle += 1
+                    # return
+
             elif (rdVal != 0):
                 # LW
                 if (op == "0000011" and funct3 == "010"):
                     val = self.ext_dmem.readInstr(rs1Val + immVal)
                     self.myRF.writeRF(rdVal, val)
-
-                # SW
-                elif (op == "0100011" and funct3 == "010"):
-                    # x[rs1] + sign_exd(imm) = x[rs2]
-                    self.ext_dmem.writeDataMem(rs1Val + concat_immVal, rs2Val)
-
-                # BEQ
-                elif (op == "1100011" and funct3 == "000"):
-                    if (rs1Val == rs2Val):
-                        offset = sign_extend(int(instr[0] + instr[-8] + instr[1:7] + instr[-12:-8] + "0", 2), 12)
-                        self.state.IF["PC"] += offset
-                        common_PC = False
-                        # if self.state.IF["nop"]:
-                        #     self.halted = True
-                        #
-                        # self.myRF.outputRF(self.cycle)  # dump RF
-                        # self.printState(self.nextState,
-                        #                 self.cycle)  # print states after executing cycle 0, cycle 1, cycle 2 ...
-                        #
-                        # self.state = self.nextState  # The end of the cycle and updates the current state with the values calculated in this cycle
-                        # self.cycle += 1
-                        # return
-
-                # BNE
-                elif (op == "1100011" and funct3 == "001"):
-                    if (rs1Val != rs2Val):
-                        offset = sign_extend(int(instr[0] + instr[-8] + instr[1:6] + instr[-12:-8] + "0", 2), 12)
-                        self.state.IF["PC"] += offset
-                        common_PC = False
-                        # if self.state.IF["nop"]:
-                        #     self.halted = True
-                        #
-                        # self.myRF.outputRF(self.cycle)  # dump RF
-                        # self.printState(self.nextState,
-                        #                 self.cycle)  # print states after executing cycle 0, cycle 1, cycle 2 ...
-                        #
-                        # self.state = self.nextState  # The end of the cycle and updates the current state with the values calculated in this cycle
-                        # self.cycle += 1
-                        # return
 
                 # ADDI
                 elif (funct3 == "000"): # op = 0000000
