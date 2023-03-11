@@ -245,8 +245,9 @@ class SingleStageCore(Core):
                     val = self.ext_dmem.readInstr(rs1Val + immVal)
                     self.myRF.writeRF(rdVal, val)
 
+                # The following ins'op = 0010011
                 # ADDI
-                elif (funct3 == "000"): # op = 0000000
+                elif (funct3 == "000"):
                     res = (rs1Val + immVal) & 0xffffffff # Ignore Overflow
                     self.myRF.writeRF(rdVal, res)
 
@@ -281,7 +282,7 @@ class SingleStageCore(Core):
                     self.myRF.writeRF(rdVal, res)
 
                 # SLLI
-                elif (funct3 == "111"):
+                elif (funct3 == "001"):
                     res = (rs1Val << immVal) & 0xffffffff
                     self.myRF.writeRF(rdVal, res)
 
