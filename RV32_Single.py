@@ -195,19 +195,10 @@ class SingleStageCore(Core):
             elif (op == "1101111"):
                 offset = instr[:-12]
                 offset = sign_extend(int(offset[0] + offset[-8:] + offset[-9] + offset[-19:-9] + "0", 2), 20)
-                self.myRF.writeRF(rdVal, (self.state.IF["PC"] + 4 & 0xffffffff))
-                self.nextState.IF["PC"] += offset  # Decimal?
+                if (rdVal != 0):
+                    self.myRF.writeRF(rdVal, (self.state.IF["PC"] + 4) & 0xffffffff)
+                self.nextState.IF["PC"] = self.state.IF["PC"] + offset  # Decimal?
                 common_PC = False
-                # if self.state.IF["nop"]:
-                #     self.halted = True
-                #
-                # self.myRF.outputRF(self.cycle)  # dump RF
-                # self.printState(self.nextState,
-                #                 self.cycle)  # print states after executing cycle 0, cycle 1, cycle 2 ...
-                #
-                # self.state = self.nextState  # The end of the cycle and updates the current state with the values calculated in this cycle
-                # self.cycle += 1
-                # return
             # SW
             elif (op == "0100011" and funct3 == "010"):
                 # x[rs1] + sign_exd(imm) = x[rs2]
@@ -215,37 +206,15 @@ class SingleStageCore(Core):
             # BEQ
             elif (op == "1100011" and funct3 == "000"):
                 if (rs1Val == rs2Val):
-                    offset = sign_extend(int(instr[0] + instr[-8] + instr[1:7] + instr[-12:-8] + "0", 2), 12)
+                    offset = sign_extend(int(instr[0] + instr[-8] + instr[1:6] + instr[-12:-8] + "0", 2), 12)
                     self.nextState.IF["PC"] += offset
                     common_PC = False
-                    # if self.state.IF["nop"]:
-                    #     self.halted = True
-                    #
-                    # self.myRF.outputRF(self.cycle)  # dump RF
-                    # self.printState(self.nextState,
-                    #                 self.cycle)  # print states after executing cycle 0, cycle 1, cycle 2 ...
-                    #
-                    # self.state = self.nextState  # The end of the cycle and updates the current state with the values calculated in this cycle
-                    # self.cycle += 1
-                    # return
-
             # BNE
             elif (op == "1100011" and funct3 == "001"):
                 if (rs1Val != rs2Val):
                     offset = sign_extend(int(instr[0] + instr[-8] + instr[1:6] + instr[-12:-8] + "0", 2), 12)
                     self.nextState.IF["PC"] += offset
                     common_PC = False
-                    # if self.state.IF["nop"]:
-                    #     self.halted = True
-                    #
-                    # self.myRF.outputRF(self.cycle)  # dump RF
-                    # self.printState(self.nextState,
-                    #                 self.cycle)  # print states after executing cycle 0, cycle 1, cycle 2 ...
-                    #
-                    # self.state = self.nextState  # The end of the cycle and updates the current state with the values calculated in this cycle
-                    # self.cycle += 1
-                    # return
-
             elif (rdVal != 0):
                 # LW
                 if (op == "0000011" and funct3 == "000"):
