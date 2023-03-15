@@ -35,6 +35,7 @@ class DataMem(object):
         self.ioDir = ioDir
         with open(ioDir + "/dmem.txt") as dm:
             self.DMem = [data.replace("\n", "") for data in dm.readlines()]
+        self.DMem = self.DMem[:len(self.DMem)] + ["00000000"] * (1000 - len(self.DMem))
 
     def readInstr(self, ReadAddress):
         # read data memory
@@ -45,7 +46,11 @@ class DataMem(object):
 
     def writeDataMem(self, Address, WriteData):
         # write data into byte addressable memory
-        self.DMem[Address] = WriteData
+        b_str = "{:032b}".format(WriteData)
+        self.DMem[Address] = b_str[:8]
+        self.DMem[Address+1] = b_str[8:16]
+        self.DMem[Address+2] = b_str[16:24]
+        self.DMem[Address+3] = b_str[24:32]
 
     def outputDataMem(self):
         resPath = self.ioDir + "/" + self.id + "_DMEMResult.txt"
@@ -76,14 +81,14 @@ class RegisterFile(object):
 
 class State(object):
     def __init__(self):
-        self.IF = {"nop": False, "PC": 0}
-        self.ID = {"nop": False, "Instr": 0}
-        self.EX = {"nop": False, "Read_data1": 0, "Read_data2": 0, "Imm": 0, "Rs": 0, "Rt": 0, "Wrt_reg_addr": 0,
-                   "is_I_type": False, "rd_mem": 0,
+        self.IF = {"nop": 0, "PC": 0}
+        self.ID = {"nop": 0, "Instr": 0}
+        self.EX = {"nop": 0, "Read_data1": 0, "Read_data2": 0, "Imm": 0, "Rs": 0, "Rt": 0, "Wrt_reg_addr": 0,
+                   "is_I_type": 0, "rd_mem": 0,
                    "wrt_mem": 0, "alu_op": 0, "wrt_enable": 0}
-        self.MEM = {"nop": False, "ALUresult": 0, "Store_data": 0, "Rs": 0, "Rt": 0, "Wrt_reg_addr": 0, "rd_mem": 0,
+        self.MEM = {"nop": 0, "ALUresult": 0, "Store_data": 0, "Rs": 0, "Rt": 0, "Wrt_reg_addr": 0, "rd_mem": 0,
                     "wrt_mem": 0, "wrt_enable": 0}
-        self.WB = {"nop": False, "Wrt_data": 0, "Rs": 0, "Rt": 0, "Wrt_reg_addr": 0, "wrt_enable": 0}
+        self.WB = {"nop": 0, "Wrt_data": 0, "Rs": 0, "Rt": 0, "Wrt_reg_addr": 0, "wrt_enable": 0}
 
 
 class Core(object):
@@ -107,8 +112,9 @@ class SingleStageCore(Core):
         # Your implementation
         common_PC = True
         self.cntInstr += 1
-        if (self.state.IF["nop"] == True):
+        if (self.state.IF["nop"] == 1):
             instr = ""
+            common_PC = False
         else:
             instr = self.ext_imem.readInstr(self.state.IF["PC"])
             op = instr[25:32]
@@ -132,7 +138,8 @@ class SingleStageCore(Core):
 
             # HALT
             if (op == "1111111"):
-                self.nextState.IF["nop"] = True
+                self.nextState.IF["nop"] = 1
+                common_PC = False
 
             elif (rdVal != 0 and op == "0110011"):
                 # ADD
@@ -189,7 +196,7 @@ class SingleStageCore(Core):
                 offset = instr[:-12]
                 offset = sign_extend(int(offset[0] + offset[-8:] + offset[-9] + offset[-19:-9] + "0", 2), 20)
                 self.myRF.writeRF(rdVal, (self.state.IF["PC"] + 4 & 0xffffffff))
-                self.state.IF["PC"] += offset  # Decimal?
+                self.nextState.IF["PC"] += offset  # Decimal?
                 common_PC = False
                 # if self.state.IF["nop"]:
                 #     self.halted = True
@@ -204,12 +211,12 @@ class SingleStageCore(Core):
             # SW
             elif (op == "0100011" and funct3 == "010"):
                 # x[rs1] + sign_exd(imm) = x[rs2]
-                self.ext_dmem.writeDataMem(rs1Val + concat_immVal, rs2Val)
+                self.ext_dmem.writeDataMem(rs1Val + concat_immVal, rs2Val & 0xffffffff)
             # BEQ
             elif (op == "1100011" and funct3 == "000"):
                 if (rs1Val == rs2Val):
                     offset = sign_extend(int(instr[0] + instr[-8] + instr[1:7] + instr[-12:-8] + "0", 2), 12)
-                    self.state.IF["PC"] += offset
+                    self.nextState.IF["PC"] += offset
                     common_PC = False
                     # if self.state.IF["nop"]:
                     #     self.halted = True
@@ -226,7 +233,7 @@ class SingleStageCore(Core):
             elif (op == "1100011" and funct3 == "001"):
                 if (rs1Val != rs2Val):
                     offset = sign_extend(int(instr[0] + instr[-8] + instr[1:6] + instr[-12:-8] + "0", 2), 12)
-                    self.state.IF["PC"] += offset
+                    self.nextState.IF["PC"] += offset
                     common_PC = False
                     # if self.state.IF["nop"]:
                     #     self.halted = True
@@ -241,13 +248,13 @@ class SingleStageCore(Core):
 
             elif (rdVal != 0):
                 # LW
-                if (op == "0000011" and funct3 == "010"):
+                if (op == "0000011" and funct3 == "000"):
                     val = self.ext_dmem.readInstr(rs1Val + immVal)
                     self.myRF.writeRF(rdVal, val)
 
                 # The following ins'op = 0010011
                 # ADDI
-                elif (funct3 == "000"):
+                elif (funct3 == "000" and op == "0010011"):
                     res = (rs1Val + immVal) & 0xffffffff # Ignore Overflow
                     self.myRF.writeRF(rdVal, res)
 
