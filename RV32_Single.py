@@ -170,12 +170,10 @@ class SingleStageCore(Core):
 
                 # SRL
                 elif (funct7 == "0000000" and funct3 == "101"):
-                    #res = self.myRF.readRF(rs1) >> self.myRF.readRF(rs2)
                     res = rs1Val >> rs2Val
 
                 # SRA
                 elif (funct7 == "0100000" and funct3 == "101"):
-                    # res = self.myRF.readRF(rs1) >> self.myRF.readRF(rs2)
                     res = (complementTovalue(rs1Val) >> rs2Val) & 0xffffffff
 
                 # OR
@@ -188,77 +186,80 @@ class SingleStageCore(Core):
 
                 # SRLI
                 elif (funct7 == "0000000" and funct3 == "111"):
-                    # res = rs1Val >> immVal
                     res = rs1Val >> immVal
                 self.myRF.writeRF(rdVal, res)
             # JAL
-            elif (op == "1101111"):
+            elif op == "1101111":
                 offset = instr[:-12]
                 offset = sign_extend(int(offset[0] + offset[-8:] + offset[-9] + offset[-19:-9] + "0", 2), 20)
                 if (rdVal != 0):
                     self.myRF.writeRF(rdVal, (self.state.IF["PC"] + 4) & 0xffffffff)
+                # Throw Error if PC + offset is not 4-byte aligned
+                if ((self.state.IF["PC"] + offset) % 4 != 0):
+                    print("PC + offset is not 4-byte aligned")
+                    exit(1)
+                # Throw Error if PC out of range
+                if ((self.state.IF["PC"] + offset) > len(self.ext_imem.instrMem)):
+                    print("PC out of range")
+                    exit(1)
                 self.nextState.IF["PC"] = self.state.IF["PC"] + offset  # Decimal?
                 common_PC = False
             # SW
-            elif (op == "0100011" and funct3 == "010"):
-                # x[rs1] + sign_exd(imm) = x[rs2]
+            elif op == "0100011" and funct3 == "010":
                 self.ext_dmem.writeDataMem(rs1Val + concat_immVal, rs2Val & 0xffffffff)
             # BEQ
-            elif (op == "1100011" and funct3 == "000"):
+            elif op == "1100011" and funct3 == "000":
                 if (rs1Val == rs2Val):
                     offset = sign_extend(int(instr[0] + instr[-8] + instr[1:6] + instr[-12:-8] + "0", 2), 12)
                     self.nextState.IF["PC"] += offset
                     common_PC = False
             # BNE
-            elif (op == "1100011" and funct3 == "001"):
+            elif op == "1100011" and funct3 == "001":
                 if (rs1Val != rs2Val):
                     offset = sign_extend(int(instr[0] + instr[-8] + instr[1:6] + instr[-12:-8] + "0", 2), 12)
                     self.nextState.IF["PC"] += offset
                     common_PC = False
             elif (rdVal != 0):
                 # LW
-                if (op == "0000011" and funct3 == "000"):
+                if op == "0000011" and funct3 == "000":
                     val = self.ext_dmem.readInstr(rs1Val + immVal)
                     self.myRF.writeRF(rdVal, val)
 
                 # The following ins'op = 0010011
                 # ADDI
-                elif (funct3 == "000" and op == "0010011"):
+                elif funct3 == "000" and op == "0010011":
                     res = (rs1Val + immVal) & 0xffffffff # Ignore Overflow
                     self.myRF.writeRF(rdVal, res)
 
                 # SLTI
-                elif (funct3 == "010"):
+                elif funct3 == "010":
                     # Signed
                     res = complementTovalue(rs1Val) < complementTovalue(immVal)
                     self.myRF.writeRF(rdVal, res)
 
                 # SLTIU
-                elif (funct3 == "011"):
+                elif funct3 == "011":
                     # Unsigned
                     res = rs1Val < immVal
                     self.myRF.writeRF(rdVal, res)
 
                 # XORI
-                elif (funct3 == "100"):
+                elif funct3 == "100":
                     res = (rs1Val ^ immVal) & 0xffffffff
                     self.myRF.writeRF(rdVal, res)
 
                 # ORI
-                elif (funct3 == "110"):
+                elif funct3 == "110":
                     res = (rs1Val | immVal) & 0xffffffff
                     self.myRF.writeRF(rdVal, res)
-                    # ?
-                    # if (self.cycle == 32):
-                    #     print("here:", imm)
 
                 # ANDI
-                elif (funct3 == "111"):
+                elif funct3 == "111":
                     res = (rs1Val & immVal) & 0xffffffff
                     self.myRF.writeRF(rdVal, res)
 
                 # SLLI
-                elif (funct3 == "001"):
+                elif funct3 == "001":
                     res = (rs1Val << immVal) & 0xffffffff
                     self.myRF.writeRF(rdVal, res)
 
