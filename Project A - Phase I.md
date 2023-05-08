@@ -21,6 +21,14 @@ The CPI of single stage processor is 1.0. Total execution cycle depends on the i
 - The ALU operates on the data read from the register file, using ALU Control's output to generate the ALU function.
 - The result from the ALU is written into the destination register (instruction[11-7]) in the register file.
 
+
+
+
+
+
+
+
+
 #### I-type
 
 ![image-20230324154010060](C:\Users\ASUS\AppData\Roaming\Typora\typora-user-images\image-20230324154010060.png)
@@ -30,6 +38,20 @@ The CPI of single stage processor is 1.0. Total execution cycle depends on the i
 - ALU Control are set based on Instruction [14-12] (func3) with ALUOp1 =1 ALUOp0 = 0. And the immediate value is sign-extended. 
 - The ALU operates on the data read from the register file and the sign-extended immediate value, using ALU Control's output to generate the ALU function.
 - The result from the ALU is written into the destination register (instruction[11-7]) in the register file.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -44,6 +66,8 @@ The CPI of single stage processor is 1.0. Total execution cycle depends on the i
 - The sum from the ALU is used as the address for the data memory.
 - The data from the memory unit is written into the register file (instruction[11-7]).
 
+
+
 #### SW:
 
 ![bac0dc1a27cbfd04b341c4d8790453d](C:\Users\ASUS\AppData\Local\Temp\WeChat Files\bac0dc1a27cbfd04b341c4d8790453d.jpg)
@@ -55,6 +79,14 @@ The CPI of single stage processor is 1.0. Total execution cycle depends on the i
 - The sum from the ALU is used as the address for the data memory.
 - The value of register 2 (instruction[24-20]) is written to the data memory.
 
+
+
+
+
+
+
+
+
 #### SB-Type (BEQ, BNE):
 
 ![image-20230324142957788](C:\Users\ASUS\AppData\Roaming\Typora\typora-user-images\image-20230324142957788.png)
@@ -65,6 +97,14 @@ The CPI of single stage processor is 1.0. Total execution cycle depends on the i
 - The ALU operates on the data read from the register file and compare those two values. Output the Boolean result.
 - The multiplexer will choose between `PC+4` or the sign-extended immediate value based on the PCSrc (`Branch&&Zero`) 
 - Update the PC Register.
+
+
+
+
+
+
+
+
 
 #### JAL:
 
