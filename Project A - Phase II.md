@@ -147,6 +147,8 @@ In the next cycle:
 
 ### Comparison between Five Stage Processor and Single Stage Processor:
 
+According to 
+
 ***Single-Stage Processor:***
 In a single-stage processor, instructions are executed in a single stage or step, meaning that the entire process (fetch, decode, execute, memory access, and writeback) occurs sequentially. This processor's performance is limited due to the linear nature of its execution. 
 

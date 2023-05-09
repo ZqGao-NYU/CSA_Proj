@@ -133,13 +133,13 @@ class RegisterFile(object):
 class State(object):
     def __init__(self):
         self.IF = {"nop": 0, "PC": 0}
-        self.ID = {"nop": 0, "Instr": ""}
-        self.EX = {"nop": 0, "Read_data1": 0, "Read_data2": 0, "Imm": 0, "Rs": 0, "Rt": 0, "Wrt_reg_addr": 0,
+        self.ID = {"nop": 1, "Instr": ""}
+        self.EX = {"nop": 1, "Read_data1": 0, "Read_data2": 0, "Imm": 0, "Rs": 0, "Rt": 0, "Wrt_reg_addr": 0,
                    "is_I_type": 0, "rd_mem": 0,
                    "wrt_mem": 0, "alu_op": 0, "wrt_enable": 0, "Halt": 0}
-        self.MEM = {"nop": 0, "ALUresult": 0, "Store_data": 0, "Rs": 0, "Rt": 0, "Wrt_reg_addr": 0, "rd_mem": 0,
+        self.MEM = {"nop": 1, "ALUresult": 0, "Store_data": 0, "Rs": 0, "Rt": 0, "Wrt_reg_addr": 0, "rd_mem": 0,
                     "wrt_mem": 0, "wrt_enable": 0}
-        self.WB = {"nop": 0, "Wrt_data": 0, "Rs": 0, "Rt": 0, "Wrt_reg_addr": 0, "wrt_enable": 0}
+        self.WB = {"nop": 1, "Wrt_data": 0, "Rs": 0, "Rt": 0, "Wrt_reg_addr": 0, "wrt_enable": 0}
 
     def update(self, other):
         for attr in ("IF", "ID", "EX", "MEM", "WB"):
@@ -159,6 +159,7 @@ class Core(object):
         self.nextState = State()
         self.ext_imem = imem
         self.ext_dmem = dmem
+        self.cntInstr = 0
 
 
 class SingleStageCore(Core):
@@ -166,7 +167,6 @@ class SingleStageCore(Core):
 
         super(SingleStageCore, self).__init__(ioDir + "/SS_", imem, dmem)
         self.opFilePath = ioDir + "/StateResult_SS.txt"
-        self.cntInstr = 0
 
     def step(self):
         # Your implementation
@@ -359,9 +359,10 @@ class FiveStageCore(Core):
         self.opFilePath = ioDir + "/StateResult_FS.txt"
         self.PCWrite = True
         self.IFIDWrite = True
+        self.END = False
 
     def decode(self, instr):
-        print("[debug]decode inst:", instr)
+        # print("[debug]decode inst:", instr)
         op = instr[25:32]
         rdRaw = instr[20:25]
         rd = int(instr[20:25], 2)
@@ -377,19 +378,19 @@ class FiveStageCore(Core):
         concat_immVal_S = sign_extend(int(funct7 + rdRaw, 2), 12)  # S-type imm
         concat_immVal_B = sign_extend(int(instr[0] + instr[-8] + instr[1:7] + instr[-12:-8] + "0", 2), 13)  # B-type imm
         concat_immVal_J = sign_extend(int(instr[0] + instr[12:20] + instr[11] + instr[1:11] + "0", 2), 21)  # J-type imm
-        print("[debug]decode opcode:", op)
-        print("[debug]decode funct3:", funct3)
-        print("[debug]decode funct7:", funct7)
-        print("[debug]decode rs1:", rs1)
-        print("[debug]decode rs2:", rs2)
-        print("[debug]decode rd:", rd)
-        print("[debug]decode imm:", imm)
+        # print("[debug]decode opcode:", op)
+        # print("[debug]decode funct3:", funct3)
+        # print("[debug]decode funct7:", funct7)
+        # print("[debug]decode rs1:", rs1)
+        # print("[debug]decode rs2:", rs2)
+        # print("[debug]decode rd:", rd)
+        # print("[debug]decode imm:", imm)
         self.nextState.EX["Rs"] = rs1
         self.nextState.EX["Rt"] = rs2
         self.nextState.EX["Read_data1"] = self.myRF.readRF(rs1)
         self.nextState.EX["Read_data2"] = self.myRF.readRF(rs2)
         self.nextState.EX["Wrt_reg_addr"] = rd
-        self.nextState.EX["Imm"] = imm
+        self.nextState.EX["Imm"] = immVal
         self.nextState.EX["alu_op"] = self.get_alu_op(op, funct3, funct7)
         self.nextState.EX["rd_mem"] = 1 if op == LW_OP else 0
         self.nextState.EX["wrt_mem"] = 1 if op == SW_OP else 0
@@ -452,7 +453,7 @@ class FiveStageCore(Core):
             #     return "SLLI"
 
     def EX_compute(self, aluop, rs1Val, rs2Val, immVal):
-        print("[debug]EX_compute ALUOP", aluop)
+        # print("[]EX_compute ALUOP", aluop)
         if aluop == "ADD":
             return (rs1Val + rs2Val) & 0xffffffff
         elif aluop == "SUB":
@@ -484,7 +485,7 @@ class FiveStageCore(Core):
         elif aluop == "BEQ":
             return (rs1Val - rs2Val) & 0xffffffff
         elif aluop == "BNE":
-            print("[debug][EX-stage] BNE!!! rs1Val | rs2Val:", rs1Val, "|", rs2Val, "|", (rs1Val - rs2Val))
+            # print("[debug][EX-stage] BNE!!! rs1Val | rs2Val:", rs1Val, "|", rs2Val, "|", (rs1Val - rs2Val))
             return (rs1Val - rs2Val) & 0xffffffff
         elif aluop == "LW":
             self.nextState.MEM["rd_mem"] = 1
@@ -503,24 +504,26 @@ class FiveStageCore(Core):
             return (rs1Val & immVal) & 0xffffffff
         elif aluop == "SLLI":
             return (rs1Val << immVal) & 0xffffffff
-        print("[debug] The aluop is not recorded:", aluop)
         return 0
 
     def step(self):
         # Your implementation
         # PC selection MUX
-        BRANCH_PC = -1
+        BRANCH_PC = 0
         PCSrc = 0
-
+        HALTED = False
         # --------------------- WB stage ---------------------
         if not self.state.WB["nop"]:
             if self.state.WB["wrt_enable"] == 1 and self.state.WB["Wrt_reg_addr"] != 0:  # not write to zero
                 self.myRF.writeRF(self.state.WB["Wrt_reg_addr"], self.state.WB["Wrt_data"])
-
+            # print("[debug]WB stage: write to reg", self.state.WB["Wrt_reg_addr"], "with data",
+            #       self.state.WB["Wrt_data"])
+            self.cntInstr += 1
         # --------------------- MEM stage --------------------
         if not self.state.MEM["nop"]:
             #  -- WRITE data into mem, if wrt_mem flag is set
             if self.state.MEM["wrt_mem"] == 1:
+                self.ext_dmem.writeDataMem(self.state.MEM["ALUresult"], self.state.MEM["Store_data"])
                 self.ext_dmem.writeDataMem(self.state.MEM["ALUresult"], self.state.MEM["Store_data"])
                 # # If data is overwritten in WB, get data directly from WB stage
                 # if (self.state.MEM["Rt"] == self.state.WB["Wrt_reg_addr"]):
@@ -533,21 +536,21 @@ class FiveStageCore(Core):
             self.nextState.WB["Rt"] = self.state.MEM["Rt"]
             self.nextState.WB["Wrt_reg_addr"] = self.state.MEM["Wrt_reg_addr"]
             self.nextState.WB["wrt_enable"] = self.state.MEM["wrt_enable"]
-
+        self.nextState.WB["nop"] = self.state.MEM["nop"]
         # --------------------- EX stage ---------------------
         PCSrc = 0
         if not self.state.EX["nop"]:
             if self.state.EX["Halt"] == 1:
-                self.nextState.EX = self.state.EX
-                self.state.EX["Halt"] = 0
+                self.nextState.EX["Halt"] = 0
             else:
                 # Check Data Hazard --- Forwarding
-                if self.state.WB["Wrt_reg_addr"] != 0:
+                if self.state.WB["Wrt_reg_addr"] != 0 and self.state.WB["wrt_enable"] == 1:
                     if self.state.WB["Wrt_reg_addr"] == self.state.EX["Rs"]:
                         self.state.EX["Read_data1"] = self.state.WB["Wrt_data"]
                     if self.state.WB["Wrt_reg_addr"] == self.state.EX["Rt"]:
                         self.state.EX["Read_data2"] = self.state.WB["Wrt_data"]
-                    # Avoid Double Data Hazard by Overwrite
+                # Avoid Double Data Hazard by Overwrite
+                if self.state.MEM["Wrt_reg_addr"] != 0 and self.state.MEM["wrt_enable"] == 1:
                     if self.state.MEM["Wrt_reg_addr"] == self.state.EX["Rs"]:
                         self.state.EX["Read_data1"] = self.state.MEM["ALUresult"]
                     if self.state.MEM["Wrt_reg_addr"] == self.state.EX["Rt"]:
@@ -555,9 +558,13 @@ class FiveStageCore(Core):
 
                 self.nextState.MEM["ALUresult"] = self.EX_compute(self.state.EX["alu_op"], self.state.EX["Read_data1"],
                                                                   self.state.EX["Read_data2"], self.state.EX["Imm"])
-                # SW MUX
-                if self.state.EX["wrt_mem"]:
-                    self.nextState.MEM["Store_data"] = self.state.EX["Read_data2"]
+                # # SW MUX --- Forwarding
+                # if self.state.EX["wrt_mem"]:
+                #     if self.state.EX["Rt"] == self.state.WB["Wrt_reg_addr"]:
+                #         self.nextState.MEM["Store_data"] = self.state.WB["Wrt_data"]
+                #     if self.state.EX["Rt"] == self.state.MEM["Wrt_reg_addr"]:
+                #         self.nextState.MEM["Store_data"] = self.state.MEM["ALUresult"]
+
                 self.nextState.MEM["Rs"] = self.state.EX["Rs"]
                 self.nextState.MEM["Rt"] = self.state.EX["Rt"]
                 self.nextState.MEM["Wrt_reg_addr"] = self.state.EX["Wrt_reg_addr"]
@@ -569,17 +576,25 @@ class FiveStageCore(Core):
         # --------------------- ID stage ---------------------
         if not self.state.ID["nop"]:
             # decode
-            concat_immVal_S, concat_immVal_B, concat_immVal_J, op = self.decode(self.state.ID["Instr"])  # Save the decoded data in nextState.EX
+            concat_immVal_S, concat_immVal_B, concat_immVal_J, op = self.decode(
+                self.state.ID["Instr"])  # Save the decoded data in nextState.EX
             # Deal with SW
+            if op == HALT_OP:
+                self.nextState.EX["Halt"] = 1
+                self.nextState.EX["nop"] = 1
+                self.state.IF["nop"] = 1
+                self.nextState.IF["nop"] = 1
+                self.state.ID["nop"] = 1
+                self.END = True
             if op == SW_OP:
                 self.nextState.EX["Imm"] = concat_immVal_S
             # check Load-Use Hazard
-            if self.state.EX["wrt_enable"] == 1 and self.state.EX["wrt_mem"] != 0:
-                if op == R_TYPE_OP or op == SW_OP:
+            if self.state.EX["wrt_enable"] == 1 and self.state.EX["rd_mem"] != 0:
+                if op == R_TYPE_OP or op == SW_OP or op == BEQ_OP or op == BNE_OP:
                     if self.state.EX["Wrt_reg_addr"] == self.nextState.EX["Rs"] or self.state.EX["Wrt_reg_addr"] == \
                             self.nextState.EX["Rt"]:
                         # Stall the pipeline --- NOP in ID/EX
-                        self.nextState.EX["Halt"] = 1
+                        self.nextState.EX["nop"] = 1
                         # Stop updating IF/ID and PC
                         self.PCWrite = False
                         self.IFIDWrite = False
@@ -590,22 +605,46 @@ class FiveStageCore(Core):
                         # Stop updating IF/ID and PC
                         self.PCWrite = False
                         self.IFIDWrite = False
+
             # Branch Hazard
-            if (op == BEQ_OP and self.nextState.EX["Rs"] == self.nextState.EX["Rt"]) or (
-                    op == BNE_OP and self.nextState.EX["Rs"] != self.nextState.EX["Rt"]):
-                self.PCSrc = 1
-                BRANCH_PC = concat_immVal_B
+            if op == BEQ_OP or op == BNE_OP:
+                # Get data if data hazard:
+                if self.state.MEM["wrt_enable"] == 1:
+                    if self.state.MEM["Wrt_reg_addr"] == self.nextState.EX["Rs"]:
+                        self.nextState.EX["Read_data1"] = self.nextState.WB["Wrt_data"]
+                    if self.state.MEM["Wrt_reg_addr"] == self.nextState.EX["Rt"]:
+                        self.nextState.EX["Read_data2"] = self.nextState.WB["Wrt_data"]
+                if self.state.EX["wrt_enable"] == 1:
+                    if self.state.EX["Wrt_reg_addr"] == self.nextState.EX["Rs"]:
+                        self.nextState.EX["Read_data1"] = self.nextState.MEM["ALUresult"]
+                    if self.state.EX["Wrt_reg_addr"] == self.nextState.EX["Rt"]:
+                        self.nextState.EX["Read_data2"] = self.nextState.MEM["ALUresult"]
+                if (self.nextState.EX["alu_op"] == "BEQ" and self.nextState.EX["Read_data1"] == self.nextState.EX[
+                    "Read_data2"]) or (
+                        self.nextState.EX["alu_op"] == "BNE" and self.nextState.EX["Read_data1"] != self.nextState.EX[
+                    "Read_data2"]):
+                    PCSrc = 1
+                    BRANCH_PC = concat_immVal_B + self.state.IF["PC"] - 4
+                    self.nextState.ID["nop"] = 1
+                    HALTED = True
                 self.nextState.EX["nop"] = 1
-                self.nextState.ID["nop"] = 1
+                self.cntInstr += 1
+
+
             elif op == JAL_OP:
-                self.PCSrc = 1
-                BRANCH_PC = concat_immVal_J
-                self.nextState.ID["nop"] = 1
-                self.nextState.EX["Read_data1"] = self.state.ID["PC"] + 4
-                self.nextState.EX["Read_data2"] = 0
+                PCSrc = 1
+                BRANCH_PC = concat_immVal_J + self.state.IF["PC"] - 4
+                self.nextState.EX["nop"] = 0
+                self.nextState.EX["Read_data1"] = self.state.IF["PC"] - 4
+                self.nextState.EX["Read_data2"] = 4
                 self.nextState.EX["Rs"] = 0
                 self.nextState.EX["Rt"] = 0
                 self.nextState.EX["alu_op"] = "ADD"
+                HALTED = True
+                self.nextState.ID["nop"] = 1
+
+            if not HALTED and op != HALT_OP and op != BEQ_OP and op != BNE_OP:
+                self.nextState.EX["nop"] = self.state.ID["nop"]
 
         # --------------------- IF stage ---------------------
         if not self.state.IF["nop"]:
@@ -619,12 +658,9 @@ class FiveStageCore(Core):
             else:
                 instr = self.ext_imem.readInstr(self.state.IF["PC"])
                 self.nextState.ID["Instr"] = instr
-                self.nextState.ID["nop"] = self.state.IF["nop"]
-                if instr == "11111111111111111111111111111111":
-                    print("HALT INSTR ENCOUNTERED")
-                    self.nextState.IF["nop"] = True
-                    self.nextState.ID["nop"] = True
-                    self.halted = True
+                if not HALTED:
+                    self.nextState.ID["nop"] = self.state.IF["nop"]
+
             # Update PC
             # Deal with Load-Use Hazard
             if not self.PCWrite:
@@ -634,14 +670,27 @@ class FiveStageCore(Core):
                 if PCSrc == 0:
                     self.nextState.IF["PC"] += 4
                 else:
-                    print("[debug][IF-stage] PC:", self.state.IF["PC"])
                     self.nextState.IF["PC"] = BRANCH_PC
-
+                    PCSrc = 0
+        self.nextState.IF["nop"] = self.state.IF["nop"]
+        if not HALTED:
+            self.nextState.ID["nop"] = self.state.IF["nop"]
         # --------------------- Dump & Update ---------------------
         # Update State
+        if self.state.IF["nop"] and self.state.ID["nop"] and self.state.EX["nop"] and self.state.MEM["nop"] and \
+                self.state.WB["nop"]:
+            self.halted = True
         self.state.update(self.nextState)
         self.myRF.outputRF(self.cycle)  # dump RF
         self.printState(self.nextState, self.cycle)  # print states after executing cycle 0, cycle 1, cycle 2 ...
+
+
+        if self.END:
+            # self.nextState = State()
+            self.state.EX["nop"] = 0
+            self.END = False
+            self.nextState.IF["nop"] = 1
+            self.nextState.ID["nop"] = 1
         self.cycle += 1
 
     def printState(self, state, cycle):
@@ -676,22 +725,29 @@ if __name__ == "__main__":
 
     ssCore = SingleStageCore(ioDir, imem, dmem_ss)
     fsCore = FiveStageCore(ioDir, imem, dmem_fs)
-
+    cntInstr = len(fsCore.ext_imem.IMem) / 4
     while (True):
-        if not ssCore.halted:
-            ssCore.step()
+        # if not ssCore.halted:
+        #     ssCore.step()
 
         if not fsCore.halted:
             fsCore.step()
-
-        if ssCore.halted and fsCore.halted:
+        if fsCore.halted:
             break
+        # if ssCore.halted and fsCore.halted:
+        #     break
+    # print("Performance Metric:")
+    # print("[Single Stage]")
+    # print("CPI =", ssCore.cycle / ssCore.cntInstr)
+    # print("Total execution cycles =", ssCore.cycle)
+    # print("Instructions per cycle =", ssCore.cntInstr / ssCore.cycle)
+
     print("Performance Metric:")
-    print("[Single Stage]")
-    print("CPI =", ssCore.cycle / ssCore.cntInstr)
-    print("Total execution cycles =", ssCore.cycle)
-    print("Instructions per cycle =", ssCore.cntInstr / ssCore.cycle)
+    print("[5 Stage]")
+    print("CPI =", fsCore.cycle / cntInstr)
+    print("Total execution cycles =", fsCore.cycle)
+    print("Instructions per cycle =", fsCore.cntInstr / fsCore.cycle)
 
     # dump SS and FS data mem.
-    dmem_ss.outputDataMem()
+    # dmem_ss.outputDataMem()
     dmem_fs.outputDataMem()
